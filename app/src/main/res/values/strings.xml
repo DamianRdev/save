@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Save</string>
+    <string name="share_title">Guardar en Save</string>
+    <string name="quick_save">Guardado rápido</string>
+    <string name="saved_successfully">Enlace guardado con éxito</string>
+    <string name="error_extracting_url">No se encontró una URL válida</string>
+    <string name="search_hint">Buscar enlaces, notas, tags o dominios…</string>
+    <string name="inbox">Bandeja</string>
+    <string name="collections">Colecciones</string>
+    <string name="search">Buscar</string>
+    <string name="settings">Ajustes</string>
+    <string name="trash">Papelera</string>
+    <string name="archive">Archivados</string>
+    <string name="favorites">Favoritos</string>
+</resources>
