@@ -1,5 +1,7 @@
 package com.damianrdev.save.data.repository
 
+import com.damianrdev.save.core.common.NetworkObserver
+import com.damianrdev.save.core.common.SmartCategorizer
 import com.damianrdev.save.core.common.UrlSanitizer
 import com.damianrdev.save.data.importer_exporter.CsvBackupHandler
 import com.damianrdev.save.data.importer_exporter.HtmlBookmarkHandler
@@ -34,7 +36,8 @@ class BookmarkRepositoryImpl @Inject constructor(
     private val bookmarkDao: BookmarkDao,
     private val collectionDao: CollectionDao,
     private val tagDao: TagDao,
-    private val metadataExtractor: MetadataExtractor
+    private val metadataExtractor: MetadataExtractor,
+    private val networkObserver: NetworkObserver
 ) : BookmarkRepository {
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -111,49 +114,78 @@ class BookmarkRepositoryImpl @Inject constructor(
     ): Long {
         val normalizedUrl = UrlSanitizer.cleanTrackingParameters(originalUrl)
         val domain = UrlSanitizer.extractDomain(originalUrl)
-        val initialTitle = title?.ifBlank { null } ?: domain
+
+        // Smart categorization inference
+        val inference = SmartCategorizer.inferCategory(originalUrl, domain, title)
+
+        // Resolve or auto-create collection if not specified
+        val resolvedCollectionId = if (collectionId != null) {
+            collectionId
+        } else {
+            val existing = collectionDao.getCollectionByName(inference.name)
+            existing?.id ?: collectionDao.insertCollection(
+                CollectionEntity(
+                    name = inference.name,
+                    colorHex = inference.colorHex,
+                    iconName = inference.iconName
+                )
+            )
+        }
+
+        // Smart title and description fallback (ideal for offline or immediate preview)
+        val smartTitle = title?.ifBlank { null } ?: SmartCategorizer.generateSmartTitle(originalUrl, domain)
+        val smartDesc = SmartCategorizer.generateSmartDescription(originalUrl, domain, inference)
+
+        val isOnline = networkObserver.isOnline
+        val initialStatus = if (isOnline) "PENDING" else "OFFLINE"
 
         val entity = BookmarkEntity(
             originalUrl = originalUrl,
             normalizedUrl = normalizedUrl,
-            title = initialTitle,
+            title = smartTitle,
+            description = smartDesc,
             sourceDomain = domain,
             note = note,
-            collectionId = collectionId,
-            metadataStatus = "PENDING"
+            collectionId = resolvedCollectionId,
+            contentType = inference.contentType,
+            metadataStatus = initialStatus
         )
 
         val bookmarkId = bookmarkDao.insertBookmark(entity)
 
-        // Associate tags
-        if (tagNames.isNotEmpty()) {
-            val tagIds = tagNames.mapNotNull { name ->
-                val trimmed = name.trim()
+        // Associate tags (use provided tags or fallback to smart default tags)
+        val effectiveTags = if (tagNames.isNotEmpty()) tagNames else inference.defaultTags
+        if (effectiveTags.isNotEmpty()) {
+            val tagIds = effectiveTags.mapNotNull { name ->
+                val trimmed = name.trim().removePrefix("#")
                 if (trimmed.isNotBlank()) tagDao.getOrCreateTag(trimmed).id else null
             }
             bookmarkDao.updateBookmarkTags(bookmarkId, tagIds)
         }
 
-        // Asynchronously fetch rich metadata
-        repositoryScope.launch {
-            try {
-                val metadata = metadataExtractor.extract(originalUrl)
-                val finalTitle = if (title.isNullOrBlank()) metadata.title else title
-                bookmarkDao.updateMetadata(
-                    id = bookmarkId,
-                    status = "SUCCESS",
-                    title = finalTitle,
-                    description = metadata.description,
-                    thumbnailUrl = metadata.thumbnailUrl
-                )
-            } catch (_: Exception) {
-                bookmarkDao.updateMetadata(
-                    id = bookmarkId,
-                    status = "FAILED",
-                    title = initialTitle,
-                    description = null,
-                    thumbnailUrl = null
-                )
+        // If online, asynchronously fetch rich OpenGraph metadata
+        if (isOnline) {
+            repositoryScope.launch {
+                try {
+                    val metadata = metadataExtractor.extract(originalUrl)
+                    val finalTitle = if (title.isNullOrBlank()) metadata.title else title
+                    val finalDesc = metadata.description ?: smartDesc
+                    bookmarkDao.updateMetadata(
+                        id = bookmarkId,
+                        status = "SUCCESS",
+                        title = finalTitle,
+                        description = finalDesc,
+                        thumbnailUrl = metadata.thumbnailUrl
+                    )
+                } catch (_: Exception) {
+                    bookmarkDao.updateMetadata(
+                        id = bookmarkId,
+                        status = "FAILED",
+                        title = smartTitle,
+                        description = smartDesc,
+                        thumbnailUrl = null
+                    )
+                }
             }
         }
 

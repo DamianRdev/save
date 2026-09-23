@@ -3,6 +3,7 @@ package com.damianrdev.save.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import com.damianrdev.save.core.common.SmartCategorizer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +64,13 @@ fun BookmarkCard(
     val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
     val formattedDate = dateFormat.format(Date(bookmark.createdAt))
 
+    val inference = SmartCategorizer.inferCategory(bookmark.originalUrl, bookmark.sourceDomain, bookmark.title)
+    val displayDescription = if (!bookmark.description.isNullOrBlank()) {
+        bookmark.description
+    } else {
+        SmartCategorizer.generateSmartDescription(bookmark.originalUrl, bookmark.sourceDomain, inference)
+    }
+
     val borderColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
@@ -92,7 +100,7 @@ fun BookmarkCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Top Row: Domain, Collection pill & selection/favorite
+            // Top Row: Content Type, Domain, Collection pill & selection/favorite
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -102,6 +110,22 @@ fun BookmarkCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
+                    // Content Type Badge (e.g. 🎥 Video, 💻 Código, etc.)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = inference.typeBadge,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     // Domain badge
                     Text(
                         text = bookmark.sourceDomain,
@@ -117,9 +141,26 @@ fun BookmarkCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
+                    // Offline Badge
+                    if (bookmark.metadataStatus == "OFFLINE") {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "📶 Offline",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                    }
+
                     // Collection indicator
                     item.collection?.let { col ->
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -178,16 +219,14 @@ fun BookmarkCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    if (!bookmark.description.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = bookmark.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = displayDescription,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
                     if (!bookmark.note.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))

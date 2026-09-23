@@ -2,6 +2,8 @@ package com.damianrdev.save.ui.share
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.damianrdev.save.core.common.NetworkObserver
+import com.damianrdev.save.core.common.SmartCategorizer
 import com.damianrdev.save.core.common.UrlSanitizer
 import com.damianrdev.save.data.datastore.UserPreferencesRepository
 import com.damianrdev.save.domain.model.Collection
@@ -23,6 +25,11 @@ data class QuickShareUiState(
     val title: String = "",
     val note: String = "",
     val selectedCollectionId: Long? = null,
+    val suggestedCategoryName: String = "",
+    val suggestedCategoryColor: String = "#3B82F6",
+    val suggestedTypeBadge: String = "🌐 Enlace",
+    val smartSummary: String = "",
+    val isOffline: Boolean = false,
     val availableCollections: List<Collection> = emptyList(),
     val tagsInput: String = "",
     val isSaving: Boolean = false,
@@ -34,7 +41,8 @@ data class QuickShareUiState(
 class QuickShareViewModel @Inject constructor(
     private val bookmarkRepository: BookmarkRepository,
     private val collectionRepository: CollectionRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val networkObserver: NetworkObserver
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuickShareUiState())
@@ -65,6 +73,10 @@ class QuickShareViewModel @Inject constructor(
         }
 
         val domain = UrlSanitizer.extractDomain(url)
+        val inference = SmartCategorizer.inferCategory(url, domain)
+        val smartTitle = SmartCategorizer.generateSmartTitle(url, domain, text)
+        val smartSummary = SmartCategorizer.generateSmartDescription(url, domain, inference)
+        val isOffline = !networkObserver.isOnline
 
         viewModelScope.launch {
             val prefs = userPreferencesRepository.userPreferencesFlow.first()
@@ -73,7 +85,12 @@ class QuickShareViewModel @Inject constructor(
                     rawText = text,
                     extractedUrl = url,
                     domain = domain,
-                    title = domain,
+                    title = smartTitle,
+                    suggestedCategoryName = inference.name,
+                    suggestedCategoryColor = inference.colorHex,
+                    suggestedTypeBadge = inference.typeBadge,
+                    smartSummary = smartSummary,
+                    isOffline = isOffline,
                     selectedCollectionId = prefs.defaultCollectionId
                 )
             }
@@ -107,7 +124,7 @@ class QuickShareViewModel @Inject constructor(
 
             bookmarkRepository.saveBookmark(
                 originalUrl = url,
-                title = if (quickSave) null else currentState.title.ifBlank { null },
+                title = currentState.title.ifBlank { null },
                 note = if (quickSave) null else currentState.note.ifBlank { null },
                 collectionId = currentState.selectedCollectionId,
                 tagNames = tags
