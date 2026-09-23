@@ -100,4 +100,10 @@ class SettingsViewModel @Inject constructor(
             userPreferencesRepository.setThemeMode(mode)
         }
     }
+
+    fun setGithubToken(token: String?) {
+        viewModelScope.launch {
+            userPreferencesRepository.setGithubToken(token)
+        }
+    }
 }

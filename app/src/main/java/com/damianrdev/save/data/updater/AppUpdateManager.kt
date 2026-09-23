@@ -6,8 +6,10 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.damianrdev.save.data.datastore.UserPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -27,7 +29,8 @@ data class UpdateInfo(
 
 @Singleton
 class AppUpdateManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) {
 
     companion object {
@@ -70,6 +73,9 @@ class AppUpdateManager @Inject constructor(
 
     suspend fun checkForUpdates(): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         try {
+            val prefs = userPreferencesRepository.userPreferencesFlow.first()
+            val token = prefs.githubToken
+
             var currentUrl = VERSION_MANIFEST_URL
             var connection: HttpURLConnection
             var redirectCount = 0
@@ -82,6 +88,10 @@ class AppUpdateManager @Inject constructor(
                 connection.readTimeout = 10000
                 connection.requestMethod = "GET"
                 connection.useCaches = false
+                connection.setRequestProperty("User-Agent", "SaveApp-Android")
+                if (!token.isNullOrBlank() && (currentUrl.contains("github.com") || currentUrl.contains("githubusercontent.com"))) {
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                }
 
                 val status = connection.responseCode
                 if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
@@ -124,9 +134,17 @@ class AppUpdateManager @Inject constructor(
                 } else {
                     Result.success(null) // App is up to date
                 }
-            } else {
+            } else if (connection.responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
                 connection.disconnect()
-                Result.failure(Exception("HTTP Error ${connection.responseCode} al comprobar actualizaciones"))
+                Result.failure(
+                    Exception(
+                        "Error 404: No se pudo acceder a GitHub. Si tu repositorio es Privado, hazlo Público en GitHub (Settings > Danger Zone) o ingresa tu Token de GitHub en Ajustes."
+                    )
+                )
+            } else {
+                val code = connection.responseCode
+                connection.disconnect()
+                Result.failure(Exception("HTTP Error $code al comprobar actualizaciones"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -138,6 +156,9 @@ class AppUpdateManager @Inject constructor(
         onProgress: (Float) -> Unit
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val prefs = userPreferencesRepository.userPreferencesFlow.first()
+            val token = prefs.githubToken
+
             var currentUrl = apkUrl
             var connection: HttpURLConnection
             var redirectCount = 0
@@ -148,6 +169,10 @@ class AppUpdateManager @Inject constructor(
                 connection.instanceFollowRedirects = true
                 connection.connectTimeout = 15000
                 connection.readTimeout = 30000
+                connection.setRequestProperty("User-Agent", "SaveApp-Android")
+                if (!token.isNullOrBlank() && (currentUrl.contains("github.com") || currentUrl.contains("githubusercontent.com"))) {
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                }
                 connection.connect()
 
                 val status = connection.responseCode

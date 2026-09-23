@@ -21,7 +21,8 @@ data class UserPreferences(
     val themeMode: String = "AMOLED_BLACK", // SYSTEM, LIGHT, DARK, AMOLED_BLACK
     val defaultCollectionId: Long? = null,
     val cleanTrackingParams: Boolean = true,
-    val autoFetchMetadata: Boolean = true
+    val autoFetchMetadata: Boolean = true,
+    val githubToken: String? = null
 )
 
 @Singleton
@@ -36,6 +37,7 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_DEFAULT_COLLECTION_ID = longPreferencesKey("default_collection_id")
         val KEY_CLEAN_TRACKING_PARAMS = booleanPreferencesKey("clean_tracking_params")
         val KEY_AUTO_FETCH_METADATA = booleanPreferencesKey("auto_fetch_metadata")
+        val KEY_GITHUB_TOKEN = stringPreferencesKey("github_token")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = dataStore.data.map { preferences ->
@@ -44,13 +46,15 @@ class UserPreferencesRepository @Inject constructor(
         val defaultCollectionId = preferences[KEY_DEFAULT_COLLECTION_ID]
         val cleanTrackingParams = preferences[KEY_CLEAN_TRACKING_PARAMS] ?: true
         val autoFetchMetadata = preferences[KEY_AUTO_FETCH_METADATA] ?: true
+        val githubToken = preferences[KEY_GITHUB_TOKEN]
 
         UserPreferences(
             useCustomTabs = useCustomTabs,
             themeMode = themeMode,
             defaultCollectionId = defaultCollectionId,
             cleanTrackingParams = cleanTrackingParams,
-            autoFetchMetadata = autoFetchMetadata
+            autoFetchMetadata = autoFetchMetadata,
+            githubToken = githubToken
         )
     }
 
@@ -85,6 +89,16 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setAutoFetchMetadata(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_AUTO_FETCH_METADATA] = enabled
+        }
+    }
+
+    suspend fun setGithubToken(token: String?) {
+        dataStore.edit { preferences ->
+            if (!token.isNullOrBlank()) {
+                preferences[KEY_GITHUB_TOKEN] = token.trim()
+            } else {
+                preferences.remove(KEY_GITHUB_TOKEN)
+            }
         }
     }
 }

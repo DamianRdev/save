@@ -35,6 +35,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,8 @@ fun SettingsScreen(
 ) {
     val prefs by viewModel.preferences.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    var showTokenDialog by remember { mutableStateOf(false) }
+    var tokenInput by remember(prefs.githubToken) { mutableStateOf(prefs.githubToken ?: "") }
 
     Column(
         modifier = modifier
@@ -144,7 +151,72 @@ fun SettingsScreen(
                     }
                     else -> {}
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (!prefs.githubToken.isNullOrBlank()) "✓ Token configurado (Repo privado)" else "Repo público (o configurar Token)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (!prefs.githubToken.isNullOrBlank()) EmeraldSuccess else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { showTokenDialog = true },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text("Configurar Token", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
+        }
+
+        // Dialog to configure GitHub Personal Access Token (for private repos)
+        if (showTokenDialog) {
+            AlertDialog(
+                onDismissRequest = { showTokenDialog = false },
+                title = { Text("Token de GitHub (Repo Privado)") },
+                text = {
+                    Column {
+                        Text(
+                            text = "Si tu repositorio en GitHub es privado, genera un Personal Access Token (classic o fine-grained con permiso de lectura de repo) y pégalo aquí. Si haces tu repositorio público en GitHub (Settings > Danger Zone), no necesitas ningún token.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = tokenInput,
+                            onValueChange = { tokenInput = it },
+                            placeholder = { Text("ghp_...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.setGithubToken(tokenInput.ifBlank { null })
+                            showTokenDialog = false
+                        }
+                    ) {
+                        Text("Guardar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.setGithubToken(null)
+                            tokenInput = ""
+                            showTokenDialog = false
+                        }
+                    ) {
+                        Text("Eliminar")
+                    }
+                }
+            )
         }
 
         // Dialog when update is found on GitHub
