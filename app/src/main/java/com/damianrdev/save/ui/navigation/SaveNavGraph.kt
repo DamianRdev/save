@@ -20,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.damianrdev.save.ui.collections.CollectionsScreen
 import com.damianrdev.save.ui.collections.CollectionsViewModel
 import com.damianrdev.save.ui.detail.BookmarkDetailScreen
@@ -92,8 +93,18 @@ fun SaveApp(
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) {
+            composable(
+                route = Screen.Home.route,
+                deepLinks = listOf(
+                    navDeepLink { uriPattern = "save://home" },
+                    navDeepLink { uriPattern = "save://favorites" }
+                )
+            ) { backStackEntry ->
                 val homeViewModel: HomeViewModel = hiltViewModel()
+                val uri = backStackEntry.arguments?.getString(androidx.navigation.NavController.KEY_DEEP_LINK_INTENT)
+                if (uri?.contains("favorites") == true) {
+                    homeViewModel.setFilter(com.damianrdev.save.ui.home.HomeFilter.FAVORITES)
+                }
                 HomeScreen(
                     viewModel = homeViewModel,
                     onNavigateToDetail = { id ->
@@ -112,7 +123,10 @@ fun SaveApp(
                 )
             }
 
-            composable(Screen.Search.route) {
+            composable(
+                route = Screen.Search.route,
+                deepLinks = listOf(navDeepLink { uriPattern = "save://search" })
+            ) {
                 val searchViewModel: SearchViewModel = hiltViewModel()
                 SearchScreen(
                     viewModel = searchViewModel,

@@ -27,6 +27,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link scheme for launcher shortcuts and external links -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="save" />
+            </intent-filter>
+
             <!-- App Shortcuts on Samsung One UI Launcher -->
             <meta-data
                 android:name="android.app.shortcuts"

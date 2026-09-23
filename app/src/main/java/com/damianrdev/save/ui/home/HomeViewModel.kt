@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -157,6 +158,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             bookmarkRepository.moveToCollection(ids, collectionId)
             clearSelection()
+        }
+    }
+
+    fun quickSaveUrl(url: String) {
+        viewModelScope.launch {
+            val prefs = userPreferencesRepository.userPreferencesFlow.first()
+            bookmarkRepository.saveBookmark(
+                originalUrl = url,
+                collectionId = prefs.defaultCollectionId
+            )
         }
     }
 }
