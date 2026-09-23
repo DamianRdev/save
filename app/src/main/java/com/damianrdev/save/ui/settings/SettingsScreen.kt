@@ -19,13 +19,19 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,6 +51,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val prefs by viewModel.preferences.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
 
     Column(
         modifier = modifier
@@ -59,6 +66,115 @@ fun SettingsScreen(
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground
         )
+
+        // Section: In-App Updates from GitHub
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Icon(
+                            imageVector = Icons.Outlined.SystemUpdate,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(modifier = Modifier.padding(start = 14.dp)) {
+                            Text(
+                                text = "Actualizaciones de Save",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Versión actual: v${viewModel.currentVersion}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (updateState is UpdateState.Checking) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        Button(
+                            onClick = { viewModel.checkForUpdates() },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Buscar")
+                        }
+                    }
+                }
+
+                when (val state = updateState) {
+                    is UpdateState.UpToDate -> {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "✓ Tienes instalada la versión más reciente.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldSuccess
+                        )
+                    }
+                    is UpdateState.Error -> {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    is UpdateState.Downloading -> {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LinearProgressIndicator(
+                            progress = { state.progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Descargando actualización: ${(state.progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    else -> {}
+                }
+            }
+        }
+
+        // Dialog when update is found on GitHub
+        if (updateState is UpdateState.Available) {
+            val info = (updateState as UpdateState.Available).info
+            AlertDialog(
+                onDismissRequest = { viewModel.resetUpdateState() },
+                title = { Text("Nueva versión disponible: v${info.versionName}") },
+                text = {
+                    Column {
+                        Text(
+                            text = "Novedades:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = info.releaseNotes, style = MaterialTheme.typography.bodyMedium)
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.downloadAndInstallUpdate(info.apkUrl) }) {
+                        Text("Descargar e Instalar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.resetUpdateState() }) {
+                        Text("Más tarde")
+                    }
+                }
+            )
+        }
 
         // General Navigation Items: Papelera, Importar/Exportar
         Card(

@@ -1,0 +1,7 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1.0",
+  "apkUrl": "https://raw.githubusercontent.com/DamianRdev/save/master/apk/Save-v1.1.0.apk",
+  "releaseNotes": "• Actualizador in-app directo desde GitHub sin necesidad de PC ni cable\n• Deslizar para archivar o borrar enlaces (Swipe-to-Dismiss) con opción Deshacer\n• Detección dinámica de versiones y compatibilidad One UI\n• Optimización para Samsung Galaxy S24 Ultra",
+  "publishedAt": "2026-09-23"
+}

@@ -27,9 +27,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,14 +41,22 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
@@ -60,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import com.damianrdev.save.ui.components.BatchActionBar
 import com.damianrdev.save.ui.components.BookmarkCard
 import com.damianrdev.save.ui.components.EmptyStateView
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -70,6 +82,8 @@ fun HomeScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var showMoveDialog by remember { mutableStateOf(false) }
 
     var clipboardUrl by remember { mutableStateOf<String?>(null) }
@@ -255,32 +269,116 @@ fun HomeScreen(
                     ) { item ->
                         val isSelected = state.selectedBookmarkIds.contains(item.bookmark.id)
 
-                        BookmarkCard(
-                            item = item,
-                            isSelected = isSelected,
-                            isSelectionMode = state.isSelectionMode,
-                            onClick = {
-                                if (state.isSelectionMode) {
-                                    viewModel.toggleSelectBookmark(item.bookmark.id)
-                                } else {
-                                    onNavigateToDetail(item.bookmark.id)
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { dismissValue ->
+                                when (dismissValue) {
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.moveToTrash(item.bookmark.id)
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Enlace movido a la papelera",
+                                                actionLabel = "Deshacer",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                viewModel.restoreBookmark(item.bookmark.id)
+                                            }
+                                        }
+                                        true
+                                    }
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.archiveBookmark(item.bookmark.id)
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Enlace archivado",
+                                                actionLabel = "Deshacer",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                viewModel.unarchiveBookmark(item.bookmark.id)
+                                            }
+                                        }
+                                        true
+                                    }
+                                    SwipeToDismissBoxValue.Settled -> false
                                 }
-                            },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (!state.isSelectionMode) {
-                                    viewModel.startSelectionMode(item.bookmark.id)
-                                } else {
-                                    viewModel.toggleSelectBookmark(item.bookmark.id)
-                                }
-                            },
-                            onToggleFavorite = {
-                                viewModel.toggleFavorite(item.bookmark.id, item.bookmark.isFavorite)
-                            },
-                            onOpenUrl = {
-                                openUrlInCustomTabs(context, item.bookmark.originalUrl)
                             }
                         )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = !state.isSelectionMode,
+                            enableDismissFromEndToStart = !state.isSelectionMode,
+                            backgroundContent = {
+                                val color by animateColorAsState(
+                                    targetValue = when (dismissState.targetValue) {
+                                        SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                                        SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                    },
+                                    label = "swipe_color"
+                                )
+                                val icon = when (dismissState.targetValue) {
+                                    SwipeToDismissBoxValue.EndToStart -> Icons.Outlined.Delete
+                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Outlined.Archive
+                                    else -> null
+                                }
+                                val alignment = when (dismissState.targetValue) {
+                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    else -> Alignment.Center
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(color)
+                                        .padding(horizontal = 24.dp),
+                                    contentAlignment = alignment
+                                ) {
+                                    if (icon != null) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
+                                                MaterialTheme.colorScheme.onErrorContainer
+                                            else
+                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            BookmarkCard(
+                                item = item,
+                                isSelected = isSelected,
+                                isSelectionMode = state.isSelectionMode,
+                                onClick = {
+                                    if (state.isSelectionMode) {
+                                        viewModel.toggleSelectBookmark(item.bookmark.id)
+                                    } else {
+                                        onNavigateToDetail(item.bookmark.id)
+                                    }
+                                },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (!state.isSelectionMode) {
+                                        viewModel.startSelectionMode(item.bookmark.id)
+                                    } else {
+                                        viewModel.toggleSelectBookmark(item.bookmark.id)
+                                    }
+                                },
+                                onToggleFavorite = {
+                                    viewModel.toggleFavorite(item.bookmark.id, item.bookmark.isFavorite)
+                                },
+                                onOpenUrl = {
+                                    openUrlInCustomTabs(context, item.bookmark.originalUrl)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -348,6 +446,13 @@ fun HomeScreen(
                 }
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (state.isSelectionMode) 80.dp else 16.dp)
+        )
     }
 }
 

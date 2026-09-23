@@ -170,4 +170,28 @@ class HomeViewModel @Inject constructor(
             )
         }
     }
+
+    fun moveToTrash(id: Long) {
+        viewModelScope.launch {
+            bookmarkRepository.moveToTrash(listOf(id))
+        }
+    }
+
+    fun restoreBookmark(id: Long) {
+        viewModelScope.launch {
+            bookmarkRepository.restoreFromTrash(listOf(id))
+        }
+    }
+
+    fun archiveBookmark(id: Long) {
+        viewModelScope.launch {
+            bookmarkRepository.setArchived(listOf(id), true)
+        }
+    }
+
+    fun unarchiveBookmark(id: Long) {
+        viewModelScope.launch {
+            bookmarkRepository.setArchived(listOf(id), false)
+        }
+    }
 }
