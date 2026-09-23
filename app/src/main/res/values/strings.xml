@@ -12,4 +12,9 @@
     <string name="trash">Papelera</string>
     <string name="archive">Archivados</string>
     <string name="favorites">Favoritos</string>
+    <string name="shortcut_search_short">Buscar</string>
+    <string name="shortcut_search_long">Buscar en tu biblioteca</string>
+    <string name="shortcut_favorites_short">Favoritos</string>
+    <string name="shortcut_favorites_long">Ver enlaces favoritos</string>
+    <string name="tile_save_label">Guardar enlace</string>
 </resources>
