@@ -45,25 +45,37 @@ class HomeViewModel @Inject constructor(
     private val _selectedIdsState = MutableStateFlow<Set<Long>>(emptySet())
     private val _isSelectionModeState = MutableStateFlow(false)
 
-    val uiState: StateFlow<HomeUiState> = combine(
-        bookmarkRepository.getAllActiveBookmarks(),
-        collectionRepository.getAllCollections(),
+    private data class FilterState(
+        val filter: HomeFilter,
+        val selectedCollectionId: Long?,
+        val selectedIds: Set<Long>,
+        val isSelectionMode: Boolean
+    )
+
+    private val _filterParams = combine(
         _filterState,
         _selectedCollectionState,
         _selectedIdsState,
-        _isSelectionModeState,
-        userPreferencesRepository.userPreferencesFlow
-    ) { allBookmarks, collections, filter, selectedCollectionId, selectedIds, isSelectionMode, prefs ->
+        _isSelectionModeState
+    ) { filter, colId, ids, isSel ->
+        FilterState(filter, colId, ids, isSel)
+    }
 
+    val uiState: StateFlow<HomeUiState> = combine(
+        bookmarkRepository.getAllActiveBookmarks(),
+        collectionRepository.getAllCollections(),
+        _filterParams,
+        userPreferencesRepository.userPreferencesFlow
+    ) { allBookmarks, collections, params, prefs ->
         val filtered = allBookmarks.filter { item ->
             val b = item.bookmark
-            val matchesTab = when (filter) {
+            val matchesTab = when (params.filter) {
                 HomeFilter.ALL -> true
                 HomeFilter.UNCATEGORIZED -> b.collectionId == null
                 HomeFilter.FAVORITES -> b.isFavorite
             }
-            val matchesCollection = if (selectedCollectionId != null) {
-                b.collectionId == selectedCollectionId
+            val matchesCollection = if (params.selectedCollectionId != null) {
+                b.collectionId == params.selectedCollectionId
             } else true
 
             matchesTab && matchesCollection
@@ -72,10 +84,10 @@ class HomeViewModel @Inject constructor(
         HomeUiState(
             bookmarks = filtered,
             collections = collections,
-            activeFilter = filter,
-            selectedCollectionId = selectedCollectionId,
-            selectedBookmarkIds = selectedIds,
-            isSelectionMode = isSelectionMode,
+            activeFilter = params.filter,
+            selectedCollectionId = params.selectedCollectionId,
+            selectedBookmarkIds = params.selectedIds,
+            isSelectionMode = params.isSelectionMode,
             useCustomTabs = prefs.useCustomTabs,
             isLoading = false
         )
