@@ -110,7 +110,8 @@ class BookmarkRepositoryImpl @Inject constructor(
         title: String?,
         note: String?,
         collectionId: Long?,
-        tagNames: List<String>
+        tagNames: List<String>,
+        rawSharedText: String?
     ): Long {
         val normalizedUrl = UrlSanitizer.cleanTrackingParameters(originalUrl)
         val domain = UrlSanitizer.extractDomain(originalUrl)
@@ -133,8 +134,8 @@ class BookmarkRepositoryImpl @Inject constructor(
         }
 
         // Smart title and description fallback (ideal for offline or immediate preview)
-        val smartTitle = title?.ifBlank { null } ?: SmartCategorizer.generateSmartTitle(originalUrl, domain)
-        val smartDesc = SmartCategorizer.generateSmartDescription(originalUrl, domain, inference)
+        val smartTitle = title?.ifBlank { null } ?: SmartCategorizer.generateSmartTitle(originalUrl, domain, rawSharedText ?: note)
+        val smartDesc = SmartCategorizer.generateSmartDescription(originalUrl, domain, inference, rawSharedText)
 
         val isOnline = networkObserver.isOnline
         val initialStatus = if (isOnline) "PENDING" else "OFFLINE"
@@ -168,8 +169,13 @@ class BookmarkRepositoryImpl @Inject constructor(
             repositoryScope.launch {
                 try {
                     val metadata = metadataExtractor.extract(originalUrl)
-                    val finalTitle = if (title.isNullOrBlank()) metadata.title else title
-                    val finalDesc = metadata.description ?: smartDesc
+                    val fetchedTitleIsUseful = metadata.title.isNotBlank() && !metadata.title.equals(domain, ignoreCase = true)
+                    val finalTitle = when {
+                        !title.isNullOrBlank() -> title
+                        fetchedTitleIsUseful -> metadata.title
+                        else -> smartTitle
+                    }
+                    val finalDesc = metadata.description?.ifBlank { null } ?: smartDesc
                     bookmarkDao.updateMetadata(
                         id = bookmarkId,
                         status = "SUCCESS",
@@ -237,15 +243,24 @@ class BookmarkRepositoryImpl @Inject constructor(
 
     override suspend fun refreshMetadata(bookmarkId: Long) {
         val existing = bookmarkDao.getBookmarkByIdSync(bookmarkId) ?: return
+        val b = existing.bookmark
         repositoryScope.launch {
             try {
-                val metadata = metadataExtractor.extract(existing.bookmark.originalUrl)
+                val metadata = metadataExtractor.extract(b.originalUrl)
+                val inference = SmartCategorizer.inferCategory(b.originalUrl, b.sourceDomain, b.title)
+                val smartTitle = SmartCategorizer.generateSmartTitle(b.originalUrl, b.sourceDomain, b.note)
+                val smartDesc = SmartCategorizer.generateSmartDescription(b.originalUrl, b.sourceDomain, inference)
+
+                val fetchedTitleIsUseful = metadata.title.isNotBlank() && !metadata.title.equals(b.sourceDomain, ignoreCase = true)
+                val finalTitle = if (fetchedTitleIsUseful) metadata.title else smartTitle
+                val finalDesc = metadata.description?.ifBlank { null } ?: smartDesc
+
                 bookmarkDao.updateMetadata(
                     id = bookmarkId,
                     status = "SUCCESS",
-                    title = metadata.title,
-                    description = metadata.description,
-                    thumbnailUrl = metadata.thumbnailUrl
+                    title = finalTitle,
+                    description = finalDesc,
+                    thumbnailUrl = metadata.thumbnailUrl ?: b.thumbnailUrl
                 )
             } catch (_: Exception) {
                 // Ignore failure

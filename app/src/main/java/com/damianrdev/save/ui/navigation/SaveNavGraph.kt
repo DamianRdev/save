@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -52,37 +53,53 @@ fun SaveApp(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             if (isTopLevelDestination) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                androidx.compose.material3.Surface(
+                    tonalElevation = 8.dp,
+                    shadowElevation = 12.dp,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                    )
                 ) {
-                    BottomNavItems.forEach { screen ->
-                        val isSelected = currentDestination == screen.route
-                        val icon = if (isSelected) screen.selectedIcon else screen.unselectedIcon
+                    NavigationBar(
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        BottomNavItems.forEach { screen ->
+                            val isSelected = currentDestination == screen.route
+                            val icon = if (isSelected) screen.selectedIcon else screen.unselectedIcon
 
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                            NavigationBarItem(
+                                selected = isSelected,
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                icon?.let {
-                                    Icon(imageVector = it, contentDescription = screen.title)
-                                }
-                            },
-                            label = { Text(text = screen.title ?: "") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                },
+                                icon = {
+                                    icon?.let {
+                                        Icon(imageVector = it, contentDescription = screen.title)
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        text = screen.title ?: "",
+                                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }

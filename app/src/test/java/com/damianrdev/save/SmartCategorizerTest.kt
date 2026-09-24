@@ -70,4 +70,22 @@ class SmartCategorizerTest {
         val desc = SmartCategorizer.generateSmartDescription("https://youtube.com/watch?v=123", "youtube.com", inference)
         assertTrue(desc.contains("youtube.com"))
     }
+
+    @Test
+    fun testThreadsSmartTitleAndDescription() {
+        val url = "https://www.threads.net/@openai/post/DW7RXR7EnRC"
+        val inference = SmartCategorizer.inferCategory(url, "threads.net")
+        assertEquals("Redes Sociales", inference.name)
+
+        val title = SmartCategorizer.generateSmartTitle(url, "threads.net")
+        assertEquals("Post de @openai • Threads", title)
+
+        val descWithSharedText = SmartCategorizer.generateSmartDescription(
+            url = url,
+            domain = "threads.net",
+            inference = inference,
+            rawSharedText = "Nuevo modelo lanzado hoy https://www.threads.net/@openai/post/DW7RXR7EnRC"
+        )
+        assertEquals("Nuevo modelo lanzado hoy", descWithSharedText)
+    }
 }

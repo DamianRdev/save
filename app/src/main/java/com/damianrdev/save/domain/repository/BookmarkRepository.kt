@@ -24,7 +24,8 @@ interface BookmarkRepository {
         title: String? = null,
         note: String? = null,
         collectionId: Long? = null,
-        tagNames: List<String> = emptyList()
+        tagNames: List<String> = emptyList(),
+        rawSharedText: String? = null
     ): Long
 
     suspend fun updateBookmark(

@@ -75,7 +75,7 @@ class QuickShareViewModel @Inject constructor(
         val domain = UrlSanitizer.extractDomain(url)
         val inference = SmartCategorizer.inferCategory(url, domain)
         val smartTitle = SmartCategorizer.generateSmartTitle(url, domain, text)
-        val smartSummary = SmartCategorizer.generateSmartDescription(url, domain, inference)
+        val smartSummary = SmartCategorizer.generateSmartDescription(url, domain, inference, text)
         val isOffline = !networkObserver.isOnline
 
         viewModelScope.launch {
@@ -127,7 +127,8 @@ class QuickShareViewModel @Inject constructor(
                 title = currentState.title.ifBlank { null },
                 note = if (quickSave) null else currentState.note.ifBlank { null },
                 collectionId = currentState.selectedCollectionId,
-                tagNames = tags
+                tagNames = tags,
+                rawSharedText = currentState.rawText
             )
 
             _uiState.update { it.copy(isSaving = false, isSaved = true) }

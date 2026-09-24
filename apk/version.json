@@ -1,7 +1,7 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2.0",
+  "versionCode": 4,
+  "versionName": "2.0.0",
   "apkUrl": "https://raw.githubusercontent.com/DamianRdev/save/master/apk/Save-latest.apk",
-  "releaseNotes": "• Categorización inteligente automática: detecta la categoría y crea la colección si no existe\n• Información a simple vista: insignias de formato (🎥 Video, 💻 Código, 🛍️ Compra, etc.) y resumen contextual garantizado en cada tarjeta\n• Guardado 100% offline instantáneo (< 10ms) sin esperas de red ni timeouts\n• Indicador de estado de captura sin conexión (📶 Offline)",
+  "releaseNotes": "✨ Save 2.0 (Rediseño Neo-Glass & Bento UI):\n• Extracción real de temas y texto completo en Threads, Instagram y X/Twitter (incluye @usuario, texto del hilo e imagen real del post)\n• Nuevo Dashboard Bento interactivo en Inicio (Guardados, Por leer, Favoritos)\n• Selector de vista en tiempo real: Modo Revista (con 3 líneas de tema e imagen) y Modo Compacto\n• Botón flotante '+ Nuevo' para agregar o pegar enlaces manualmente en cualquier momento\n• Modo Lectura en pantalla de detalle con botón para copiar el texto del post",
   "publishedAt": "2026-09-23"
 }

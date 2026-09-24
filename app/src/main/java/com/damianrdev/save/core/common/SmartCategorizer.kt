@@ -58,8 +58,9 @@ object SmartCategorizer {
             // Social Networks
             lowerDomain.contains("twitter.com") || lowerDomain.contains("x.com") ||
             lowerDomain.contains("instagram.com") || lowerDomain.contains("threads.net") ||
-            lowerDomain.contains("reddit.com") || lowerDomain.contains("linkedin.com") ||
-            lowerDomain.contains("bsky.app") || lowerDomain.contains("facebook.com") -> {
+            lowerDomain.contains("threads.com") || lowerDomain.contains("reddit.com") ||
+            lowerDomain.contains("linkedin.com") || lowerDomain.contains("bsky.app") ||
+            lowerDomain.contains("facebook.com") -> {
                 CategoryInference(
                     name = "Redes Sociales",
                     colorHex = "#3B82F6",
@@ -194,20 +195,56 @@ object SmartCategorizer {
     }
 
     /**
+     * Extracts clean accompanying text if the user shared or copied a caption alongside the URL.
+     */
+    fun extractAccompanyingText(url: String, rawSharedText: String?): String? {
+        if (rawSharedText.isNullOrBlank()) return null
+        val withoutUrl = rawSharedText.replace(url, "")
+            .replace(Regex("""https?://\S+"""), "")
+            .removePrefix("Mira esto:")
+            .removePrefix("Check out:")
+            .removePrefix("Check out this thread:")
+            .removePrefix("Te comparto:")
+            .trim(' ', '-', '—', ':', '\n', '\r', '"')
+        return if (withoutUrl.length >= 4) withoutUrl else null
+    }
+
+    /**
      * Generates a readable, informative title directly from the URL or shared text without internet.
      */
     fun generateSmartTitle(url: String, domain: String, rawSharedText: String? = null): String {
-        // If raw shared text had a title alongside the URL (e.g. from YouTube/Twitter/Chrome share)
-        if (!rawSharedText.isNullOrBlank()) {
-            val textWithoutUrl = rawSharedText.replace(url, "").trim()
-            val clean = textWithoutUrl
-                .removePrefix("Mira esto:")
-                .removePrefix("Check out:")
-                .removePrefix("Te comparto:")
-                .trim(' ', '-', '—', ':', '\n', '\r', '"')
-            if (clean.length in 4..120) {
-                return clean
-            }
+        val extraText = extractAccompanyingText(url, rawSharedText)
+        if (extraText != null && extraText.length in 4..120) {
+            return extraText
+        }
+
+        // Specialized platform pattern matching
+        val threadsPost = Regex("""threads\.(?:net|com)/@([a-zA-Z0-9_.]+)/post/""", RegexOption.IGNORE_CASE).find(url)
+        if (threadsPost != null) {
+            return "Post de @${threadsPost.groupValues[1]} • Threads"
+        }
+        val threadsProfile = Regex("""threads\.(?:net|com)/@([a-zA-Z0-9_.]+)/?$""", RegexOption.IGNORE_CASE).find(url)
+        if (threadsProfile != null) {
+            return "Perfil de @${threadsProfile.groupValues[1]} • Threads"
+        }
+
+        val xPost = Regex("""(?:twitter|x)\.com/([a-zA-Z0-9_]+)/status/""", RegexOption.IGNORE_CASE).find(url)
+        if (xPost != null) {
+            return "Post de @${xPost.groupValues[1]} • X"
+        }
+        val xProfile = Regex("""(?:twitter|x)\.com/([a-zA-Z0-9_]+)/?$""", RegexOption.IGNORE_CASE).find(url)
+        if (xProfile != null) {
+            return "Perfil de @${xProfile.groupValues[1]} • X"
+        }
+
+        val githubRepo = Regex("""github\.com/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)""", RegexOption.IGNORE_CASE).find(url)
+        if (githubRepo != null) {
+            return "${githubRepo.groupValues[2]} • GitHub (${githubRepo.groupValues[1]})"
+        }
+
+        val tiktokVideo = Regex("""tiktok\.com/@([a-zA-Z0-9_.]+)/video/""", RegexOption.IGNORE_CASE).find(url)
+        if (tiktokVideo != null) {
+            return "Video de @${tiktokVideo.groupValues[1]} • TikTok"
         }
 
         // Try extracting human-readable words from the URL path slug
@@ -245,7 +282,36 @@ object SmartCategorizer {
     /**
      * Generates a clear contextual summary at a glance if the web does not provide description or if offline.
      */
-    fun generateSmartDescription(url: String, domain: String, inference: CategoryInference): String {
+    fun generateSmartDescription(
+        url: String,
+        domain: String,
+        inference: CategoryInference,
+        rawSharedText: String? = null
+    ): String {
+        val extraText = extractAccompanyingText(url, rawSharedText)
+        if (!extraText.isNullOrBlank()) {
+            return extraText
+        }
+
+        val threadsPost = Regex("""threads\.(?:net|com)/@([a-zA-Z0-9_.]+)/post/""", RegexOption.IGNORE_CASE).find(url)
+        if (threadsPost != null) {
+            return "Publicación de @${threadsPost.groupValues[1]} en Threads"
+        }
+        val threadsProfile = Regex("""threads\.(?:net|com)/@([a-zA-Z0-9_.]+)/?$""", RegexOption.IGNORE_CASE).find(url)
+        if (threadsProfile != null) {
+            return "Perfil de @${threadsProfile.groupValues[1]} en Threads"
+        }
+
+        val xPost = Regex("""(?:twitter|x)\.com/([a-zA-Z0-9_]+)/status/""", RegexOption.IGNORE_CASE).find(url)
+        if (xPost != null) {
+            return "Publicación de @${xPost.groupValues[1]} en X (Twitter)"
+        }
+
+        val githubRepo = Regex("""github\.com/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)""", RegexOption.IGNORE_CASE).find(url)
+        if (githubRepo != null) {
+            return "Repositorio de código ${githubRepo.groupValues[1]}/${githubRepo.groupValues[2]} en GitHub"
+        }
+
         return "${inference.summaryHint} guardado desde $domain"
     }
 }

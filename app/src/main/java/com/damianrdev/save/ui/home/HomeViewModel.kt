@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class HomeFilter {
-    ALL, UNCATEGORIZED, FAVORITES
+    ALL, UNREAD, FAVORITES, UNCATEGORIZED
 }
 
 data class HomeUiState(
@@ -30,6 +30,10 @@ data class HomeUiState(
     val selectedCollectionId: Long? = null,
     val selectedBookmarkIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false,
+    val isCompactView: Boolean = false,
+    val totalCount: Int = 0,
+    val unreadCount: Int = 0,
+    val favoritesCount: Int = 0,
     val useCustomTabs: Boolean = true,
     val isLoading: Boolean = false
 )
@@ -45,21 +49,24 @@ class HomeViewModel @Inject constructor(
     private val _selectedCollectionState = MutableStateFlow<Long?>(null)
     private val _selectedIdsState = MutableStateFlow<Set<Long>>(emptySet())
     private val _isSelectionModeState = MutableStateFlow(false)
+    private val _isCompactViewState = MutableStateFlow(false)
 
     private data class FilterState(
         val filter: HomeFilter,
         val selectedCollectionId: Long?,
         val selectedIds: Set<Long>,
-        val isSelectionMode: Boolean
+        val isSelectionMode: Boolean,
+        val isCompactView: Boolean
     )
 
     private val _filterParams = combine(
         _filterState,
         _selectedCollectionState,
         _selectedIdsState,
-        _isSelectionModeState
-    ) { filter, colId, ids, isSel ->
-        FilterState(filter, colId, ids, isSel)
+        _isSelectionModeState,
+        _isCompactViewState
+    ) { filter, colId, ids, isSel, isCompact ->
+        FilterState(filter, colId, ids, isSel, isCompact)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -72,8 +79,9 @@ class HomeViewModel @Inject constructor(
             val b = item.bookmark
             val matchesTab = when (params.filter) {
                 HomeFilter.ALL -> true
-                HomeFilter.UNCATEGORIZED -> b.collectionId == null
+                HomeFilter.UNREAD -> !b.isRead
                 HomeFilter.FAVORITES -> b.isFavorite
+                HomeFilter.UNCATEGORIZED -> b.collectionId == null
             }
             val matchesCollection = if (params.selectedCollectionId != null) {
                 b.collectionId == params.selectedCollectionId
@@ -89,6 +97,10 @@ class HomeViewModel @Inject constructor(
             selectedCollectionId = params.selectedCollectionId,
             selectedBookmarkIds = params.selectedIds,
             isSelectionMode = params.isSelectionMode,
+            isCompactView = params.isCompactView,
+            totalCount = allBookmarks.size,
+            unreadCount = allBookmarks.count { !it.bookmark.isRead },
+            favoritesCount = allBookmarks.count { it.bookmark.isFavorite },
             useCustomTabs = prefs.useCustomTabs,
             isLoading = false
         )
@@ -100,6 +112,10 @@ class HomeViewModel @Inject constructor(
 
     fun setFilter(filter: HomeFilter) {
         _filterState.value = filter
+    }
+
+    fun toggleViewMode() {
+        _isCompactViewState.update { !it }
     }
 
     fun selectCollection(collectionId: Long?) {
@@ -161,12 +177,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun quickSaveUrl(url: String) {
+    fun quickSaveUrl(
+        url: String,
+        rawText: String? = null,
+        title: String? = null,
+        note: String? = null,
+        collectionId: Long? = null
+    ) {
         viewModelScope.launch {
             val prefs = userPreferencesRepository.userPreferencesFlow.first()
             bookmarkRepository.saveBookmark(
                 originalUrl = url,
-                collectionId = prefs.defaultCollectionId
+                title = title?.ifBlank { null },
+                note = note?.ifBlank { null },
+                collectionId = collectionId ?: prefs.defaultCollectionId,
+                rawSharedText = rawText
             )
         }
     }
