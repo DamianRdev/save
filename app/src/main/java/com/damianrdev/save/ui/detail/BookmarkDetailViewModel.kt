@@ -27,15 +27,34 @@ class BookmarkDetailViewModel @Inject constructor(
             initialValue = null
         )
 
+    val bookmark: StateFlow<BookmarkWithDetails?> = item
+
     fun toggleFavorite(current: Boolean) {
         viewModelScope.launch {
             bookmarkRepository.setFavorite(bookmarkId, !current)
         }
     }
 
-    fun toggleRead(current: Boolean) {
+    fun toggleRead(current: Boolean = item.value?.bookmark?.isRead ?: false) {
         viewModelScope.launch {
             bookmarkRepository.setRead(bookmarkId, !current)
+        }
+    }
+
+    fun updateReadingProgress(progress: Float) {
+        viewModelScope.launch {
+            bookmarkRepository.updateReadingProgress(bookmarkId, progress)
+        }
+    }
+
+    fun toggleOfflineDownload() {
+        val currentStatus = item.value?.bookmark?.offlineStatus
+        viewModelScope.launch {
+            if (currentStatus == "AVAILABLE") {
+                bookmarkRepository.removeOfflineArticle(bookmarkId)
+            } else {
+                bookmarkRepository.downloadOfflineArticle(bookmarkId)
+            }
         }
     }
 

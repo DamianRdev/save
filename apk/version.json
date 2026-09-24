@@ -1,7 +1,7 @@
 {
-  "versionCode": 4,
-  "versionName": "2.0.0",
+  "versionCode": 5,
+  "versionName": "2.1.0",
   "apkUrl": "https://raw.githubusercontent.com/DamianRdev/save/master/apk/Save-latest.apk",
-  "releaseNotes": "✨ Save 2.0 (Rediseño Neo-Glass & Bento UI):\n• Extracción real de temas y texto completo en Threads, Instagram y X/Twitter (incluye @usuario, texto del hilo e imagen real del post)\n• Nuevo Dashboard Bento interactivo en Inicio (Guardados, Por leer, Favoritos)\n• Selector de vista en tiempo real: Modo Revista (con 3 líneas de tema e imagen) y Modo Compacto\n• Botón flotante '+ Nuevo' para agregar o pegar enlaces manualmente en cualquier momento\n• Modo Lectura en pantalla de detalle con botón para copiar el texto del post",
-  "publishedAt": "2026-09-23"
+  "releaseNotes": "🚀 SAVE v2.1.0 — Experiencia Completa Local-First (Estilo Pocket evolucionado):\n• Modo Lector nativo sin distracciones: personalización de fuente (A-/A+), interlineado, temas Claro/Sepia/Oscuro OLED y barra de progreso de lectura\n• Nueva sección 'Biblioteca' dedicada en navegación inferior (5 pestañas: Inicio, Biblioteca, Colecciones, Buscar, Ajustes) con vistas Revista, Compacta y Cuadrícula (Grid)\n• Detección inteligente de enlaces duplicados al compartir: avisa si ya está guardado y permite actualizarlo o guardar copia\n• Búsqueda avanzada con historial reciente, filtros por formato/offline y ordenamiento por fecha, título, dominio y tiempo de lectura\n• Migración segura de base de datos Room v2 con semilla de colecciones sugeridas y control total de privacidad",
+  "publishedAt": "2026-09-24"
 }

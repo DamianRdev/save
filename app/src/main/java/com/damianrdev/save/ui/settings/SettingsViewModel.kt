@@ -28,6 +28,7 @@ sealed interface UpdateState {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val bookmarkRepository: com.damianrdev.save.domain.repository.BookmarkRepository,
     private val appUpdateManager: AppUpdateManager
 ) : ViewModel() {
 
@@ -95,6 +96,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setWifiOnlyOffline(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setWifiOnlyOffline(enabled)
+        }
+    }
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             userPreferencesRepository.setThemeMode(mode)
@@ -104,6 +111,13 @@ class SettingsViewModel @Inject constructor(
     fun setGithubToken(token: String?) {
         viewModelScope.launch {
             userPreferencesRepository.setGithubToken(token)
+        }
+    }
+
+    fun deleteAllData() {
+        viewModelScope.launch {
+            bookmarkRepository.deleteAllUserData()
+            userPreferencesRepository.clearRecentSearches()
         }
     }
 }

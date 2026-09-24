@@ -30,6 +30,9 @@ data class QuickShareUiState(
     val suggestedTypeBadge: String = "🌐 Enlace",
     val smartSummary: String = "",
     val isOffline: Boolean = false,
+    val isDuplicate: Boolean = false,
+    val existingBookmarkId: Long? = null,
+    val existingTitle: String = "",
     val availableCollections: List<Collection> = emptyList(),
     val tagsInput: String = "",
     val isSaving: Boolean = false,
@@ -80,18 +83,23 @@ class QuickShareViewModel @Inject constructor(
 
         viewModelScope.launch {
             val prefs = userPreferencesRepository.userPreferencesFlow.first()
+            val existing = bookmarkRepository.findExistingByUrl(url)
             _uiState.update {
                 it.copy(
                     rawText = text,
                     extractedUrl = url,
                     domain = domain,
-                    title = smartTitle,
-                    suggestedCategoryName = inference.name,
-                    suggestedCategoryColor = inference.colorHex,
+                    title = existing?.bookmark?.title ?: smartTitle,
+                    note = existing?.bookmark?.note ?: "",
+                    suggestedCategoryName = existing?.collection?.name ?: inference.name,
+                    suggestedCategoryColor = existing?.collection?.colorHex ?: inference.colorHex,
                     suggestedTypeBadge = inference.typeBadge,
-                    smartSummary = smartSummary,
+                    smartSummary = existing?.bookmark?.description ?: smartSummary,
                     isOffline = isOffline,
-                    selectedCollectionId = prefs.defaultCollectionId
+                    isDuplicate = existing != null,
+                    existingBookmarkId = existing?.bookmark?.id,
+                    existingTitle = existing?.bookmark?.title ?: "",
+                    selectedCollectionId = existing?.bookmark?.collectionId ?: prefs.defaultCollectionId
                 )
             }
         }
@@ -107,6 +115,20 @@ class QuickShareViewModel @Inject constructor(
 
     fun onCollectionSelect(collectionId: Long?) {
         _uiState.update { it.copy(selectedCollectionId = collectionId) }
+    }
+
+    fun updateExistingBookmark() {
+        val currentState = _uiState.value
+        val existingId = currentState.existingBookmarkId ?: return
+        _uiState.update { it.copy(isSaving = true) }
+
+        viewModelScope.launch {
+            bookmarkRepository.refreshMetadata(existingId)
+            if (currentState.selectedCollectionId != null) {
+                bookmarkRepository.moveToCollection(listOf(existingId), currentState.selectedCollectionId)
+            }
+            _uiState.update { it.copy(isSaving = false, isSaved = true) }
+        }
     }
 
     fun saveBookmark(quickSave: Boolean = false) {

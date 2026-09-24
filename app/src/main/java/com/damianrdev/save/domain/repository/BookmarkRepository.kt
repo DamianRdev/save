@@ -33,6 +33,12 @@ interface BookmarkRepository {
         tagNames: List<String>
     )
 
+    suspend fun findExistingByUrl(url: String): BookmarkWithDetails?
+    suspend fun updateReadingProgress(id: Long, progress: Float)
+    suspend fun downloadOfflineArticle(bookmarkId: Long): Boolean
+    suspend fun removeOfflineArticle(bookmarkId: Long)
+    suspend fun deleteAllUserData()
+
     suspend fun setFavorite(id: Long, isFavorite: Boolean)
     suspend fun setRead(id: Long, isRead: Boolean)
     suspend fun moveToTrash(ids: List<Long>)

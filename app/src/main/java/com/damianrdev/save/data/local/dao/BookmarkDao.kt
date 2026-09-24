@@ -111,15 +111,43 @@ interface BookmarkDao {
     @Query("UPDATE bookmarks SET isRead = :isRead, updatedAt = :timestamp WHERE id = :id")
     suspend fun setRead(id: Long, isRead: Boolean, timestamp: Long = System.currentTimeMillis())
 
-    @Query("UPDATE bookmarks SET metadataStatus = :status, title = :title, description = :description, thumbnailUrl = :thumbnailUrl, updatedAt = :timestamp WHERE id = :id")
+    @Query("""
+        UPDATE bookmarks 
+        SET metadataStatus = :status, 
+            title = :title, 
+            description = :description, 
+            thumbnailUrl = :thumbnailUrl,
+            author = :author,
+            readingTimeMinutes = :readingTimeMinutes,
+            offlineStatus = :offlineStatus,
+            offlineHtmlContent = :offlineHtmlContent,
+            updatedAt = :timestamp 
+        WHERE id = :id
+    """)
     suspend fun updateMetadata(
         id: Long,
         status: String,
         title: String,
         description: String?,
         thumbnailUrl: String?,
+        author: String? = null,
+        readingTimeMinutes: Int = 1,
+        offlineStatus: String = "NONE",
+        offlineHtmlContent: String? = null,
         timestamp: Long = System.currentTimeMillis()
     )
+
+    @Query("UPDATE bookmarks SET readingProgress = :progress, lastOpenedAt = :timestamp, updatedAt = :timestamp WHERE id = :id")
+    suspend fun updateReadingProgress(id: Long, progress: Float, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE bookmarks SET offlineStatus = :offlineStatus, offlineHtmlContent = :offlineHtmlContent, updatedAt = :timestamp WHERE id = :id")
+    suspend fun updateOfflineContent(id: Long, offlineStatus: String, offlineHtmlContent: String?, timestamp: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM bookmarks")
+    suspend fun deleteAllBookmarks()
+
+    @Query("DELETE FROM bookmark_tag_cross_ref")
+    suspend fun deleteAllCrossRefs()
 
     // Tag Relationships
     @Insert(onConflict = OnConflictStrategy.IGNORE)

@@ -231,17 +231,31 @@ fun BookmarkCard(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Domain & Date
+                    // Domain, Reading Time & Date
                     Text(
-                        text = "${bookmark.sourceDomain} • $formattedDate",
+                        text = "${bookmark.sourceDomain} • ~${bookmark.readingTimeMinutes.coerceAtLeast(1)}m • $formattedDate",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Offline Badge
-                    if (bookmark.metadataStatus == "OFFLINE") {
+                    // Offline Reader Available Badge
+                    if (bookmark.offlineStatus == "AVAILABLE") {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(EmeraldSuccess.copy(alpha = 0.16f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "📶✓",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = EmeraldSuccess
+                            )
+                        }
+                    } else if (bookmark.metadataStatus == "OFFLINE") {
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier

@@ -14,7 +14,10 @@ data class CollectionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
     val name: String,
+    val description: String? = null,
     val colorHex: String = "#6366F1",
     val iconName: String = "folder",
-    val createdAt: Long = System.currentTimeMillis()
+    val position: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )

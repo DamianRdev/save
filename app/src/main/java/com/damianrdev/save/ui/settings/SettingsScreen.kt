@@ -299,16 +299,25 @@ fun SettingsScreen(
 
                 SettingsSwitchRow(
                     title = "Extracción automática de metadatos",
-                    subtitle = "Obtiene título e imagen preliminar en segundo plano",
+                    subtitle = "Obtiene título, autor y modo lector en segundo plano",
                     checked = prefs.autoFetchMetadata,
                     onCheckedChange = { viewModel.setAutoFetchMetadata(it) }
+                )
+
+                SettingsSwitchRow(
+                    title = "Descargas offline solo por Wi-Fi",
+                    subtitle = "Ahorra datos móviles al guardar copias para el Modo Lector",
+                    checked = prefs.wifiOnlyOffline,
+                    onCheckedChange = { viewModel.setWifiOnlyOffline(it) }
                 )
             }
         }
 
-        // Section: Privacidad Local-First
+        // Section: Privacidad Local-First & Eliminación Total de Datos
+        var showDeleteAllDialog by remember { mutableStateOf(false) }
+
         Text(
-            text = "Privacidad Real",
+            text = "Privacidad Real y Control de Datos",
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
             color = EmeraldSuccess
         )
@@ -331,17 +340,56 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "• Sin cuentas ni contraseñas.\n• Sin conexión a servidores externos ni telemetría.\n• Base de datos SQLite alojada exclusivamente en el almacenamiento seguro de tu Samsung Galaxy S24 Ultra.\n• Tus datos son completamente exportables en formatos abiertos.",
+                    text = "• Sin cuentas obligatorias ni contraseñas.\n• Sin conexión a servidores propietarios ni rastreadores.\n• Base de datos SQLite alojada exclusivamente en tu dispositivo.\n• Tus datos son completamente exportables e importables en JSON, CSV y HTML.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { showDeleteAllDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+                    Text("Eliminar todos los datos de SAVE", color = MaterialTheme.colorScheme.error)
+                }
             }
+        }
+
+        if (showDeleteAllDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllDialog = false },
+                title = { Text("¿Eliminar toda la biblioteca?") },
+                text = {
+                    Text(
+                        "Esta acción eliminará permanentemente todos los enlaces guardados, copias offline y búsquedas recientes de este dispositivo. Te recomendamos exportar una copia de seguridad en JSON antes de continuar."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteAllData()
+                            showDeleteAllDialog = false
+                        }
+                    ) {
+                        Text("Sí, eliminar todo")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
         }
 
         // Version footer
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Save v1.0.0 — Diseñado para Samsung S24 Ultra",
+            text = "Save v${viewModel.currentVersion} — Local-First Personal Vault",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier.align(Alignment.CenterHorizontally)

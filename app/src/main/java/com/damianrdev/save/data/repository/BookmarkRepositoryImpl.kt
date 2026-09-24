@@ -85,24 +85,46 @@ class BookmarkRepositoryImpl @Inject constructor(
     override fun search(filter: SearchFilter): Flow<List<BookmarkWithDetails>> {
         val baseQuery = filter.query.trim()
         val flow = if (baseQuery.isBlank()) {
-            bookmarkDao.getAllActiveBookmarks()
+            if (filter.onlyArchived) {
+                bookmarkDao.getArchivedBookmarks()
+            } else {
+                bookmarkDao.getAllActiveBookmarks()
+            }
         } else {
             bookmarkDao.searchBookmarks(baseQuery)
         }
 
         return flow.map { list ->
-            list.map { it.toDomain() }.filter { item ->
+            val filtered = list.map { it.toDomain() }.filter { item ->
                 val b = item.bookmark
                 var matches = true
                 if (filter.onlyFavorites && !b.isFavorite) matches = false
                 if (filter.onlyArchived && !b.isArchived) matches = false
                 if (filter.onlyUnread && b.isRead) matches = false
+                if (filter.onlyRead && !b.isRead) matches = false
+                if (filter.onlyOffline && b.offlineStatus != "AVAILABLE") matches = false
+                if (!filter.contentType.isNullOrBlank() && !b.contentType.equals(filter.contentType, ignoreCase = true)) matches = false
                 if (filter.collectionId != null && b.collectionId != filter.collectionId) matches = false
                 if (filter.tagId != null && item.tags.none { it.id == filter.tagId }) matches = false
                 if (!filter.sourceDomain.isNullOrBlank() && !b.sourceDomain.equals(filter.sourceDomain, ignoreCase = true)) matches = false
                 matches
             }
+
+            when (filter.sortOrder) {
+                com.damianrdev.save.domain.model.SortOrder.NEWEST -> filtered.sortedByDescending { it.bookmark.createdAt }
+                com.damianrdev.save.domain.model.SortOrder.OLDEST -> filtered.sortedBy { it.bookmark.createdAt }
+                com.damianrdev.save.domain.model.SortOrder.TITLE -> filtered.sortedBy { it.bookmark.title.lowercase() }
+                com.damianrdev.save.domain.model.SortOrder.LAST_OPENED -> filtered.sortedByDescending { it.bookmark.lastOpenedAt ?: 0L }
+                com.damianrdev.save.domain.model.SortOrder.DOMAIN -> filtered.sortedBy { it.bookmark.sourceDomain.lowercase() }
+                com.damianrdev.save.domain.model.SortOrder.READING_TIME -> filtered.sortedByDescending { it.bookmark.readingTimeMinutes }
+            }
         }
+    }
+
+    override suspend fun findExistingByUrl(url: String): BookmarkWithDetails? {
+        val normalizedUrl = UrlSanitizer.cleanTrackingParameters(url)
+        val existingEntity = bookmarkDao.getBookmarkByNormalizedUrl(normalizedUrl) ?: return null
+        return bookmarkDao.getBookmarkByIdSync(existingEntity.id)?.toDomain()
     }
 
     override suspend fun saveBookmark(
@@ -149,7 +171,8 @@ class BookmarkRepositoryImpl @Inject constructor(
             note = note,
             collectionId = resolvedCollectionId,
             contentType = inference.contentType,
-            metadataStatus = initialStatus
+            metadataStatus = initialStatus,
+            readingTimeMinutes = 1
         )
 
         val bookmarkId = bookmarkDao.insertBookmark(entity)
@@ -164,7 +187,7 @@ class BookmarkRepositoryImpl @Inject constructor(
             bookmarkDao.updateBookmarkTags(bookmarkId, tagIds)
         }
 
-        // If online, asynchronously fetch rich OpenGraph metadata
+        // If online, asynchronously fetch rich OpenGraph + Reader metadata
         if (isOnline) {
             repositoryScope.launch {
                 try {
@@ -176,12 +199,17 @@ class BookmarkRepositoryImpl @Inject constructor(
                         else -> smartTitle
                     }
                     val finalDesc = metadata.description?.ifBlank { null } ?: smartDesc
+                    val hasOfflineReader = !metadata.readerContent.isNullOrBlank()
                     bookmarkDao.updateMetadata(
                         id = bookmarkId,
                         status = "SUCCESS",
                         title = finalTitle,
                         description = finalDesc,
-                        thumbnailUrl = metadata.thumbnailUrl
+                        thumbnailUrl = metadata.thumbnailUrl,
+                        author = metadata.author,
+                        readingTimeMinutes = metadata.readingTimeMinutes,
+                        offlineStatus = if (hasOfflineReader) "AVAILABLE" else "NONE",
+                        offlineHtmlContent = metadata.readerContent
                     )
                 } catch (_: Exception) {
                     bookmarkDao.updateMetadata(
@@ -207,6 +235,44 @@ class BookmarkRepositoryImpl @Inject constructor(
             if (trimmed.isNotBlank()) tagDao.getOrCreateTag(trimmed).id else null
         }
         bookmarkDao.updateBookmarkTags(bookmark.id, tagIds)
+    }
+
+    override suspend fun updateReadingProgress(id: Long, progress: Float) {
+        bookmarkDao.updateReadingProgress(id, progress.coerceIn(0f, 1f))
+    }
+
+    override suspend fun downloadOfflineArticle(bookmarkId: Long): Boolean {
+        val existing = bookmarkDao.getBookmarkByIdSync(bookmarkId) ?: return false
+        val b = existing.bookmark
+        return try {
+            val metadata = metadataExtractor.extract(b.originalUrl)
+            val content = metadata.readerContent ?: metadata.description ?: b.description
+            if (!content.isNullOrBlank()) {
+                bookmarkDao.updateOfflineContent(
+                    id = bookmarkId,
+                    offlineStatus = "AVAILABLE",
+                    offlineHtmlContent = content
+                )
+                true
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    override suspend fun removeOfflineArticle(bookmarkId: Long) {
+        bookmarkDao.updateOfflineContent(
+            id = bookmarkId,
+            offlineStatus = "NONE",
+            offlineHtmlContent = null
+        )
+    }
+
+    override suspend fun deleteAllUserData() {
+        bookmarkDao.deleteAllCrossRefs()
+        bookmarkDao.deleteAllBookmarks()
     }
 
     override suspend fun setFavorite(id: Long, isFavorite: Boolean) {
@@ -254,13 +320,18 @@ class BookmarkRepositoryImpl @Inject constructor(
                 val fetchedTitleIsUseful = metadata.title.isNotBlank() && !metadata.title.equals(b.sourceDomain, ignoreCase = true)
                 val finalTitle = if (fetchedTitleIsUseful) metadata.title else smartTitle
                 val finalDesc = metadata.description?.ifBlank { null } ?: smartDesc
+                val readerText = metadata.readerContent ?: b.offlineHtmlContent
 
                 bookmarkDao.updateMetadata(
                     id = bookmarkId,
                     status = "SUCCESS",
                     title = finalTitle,
                     description = finalDesc,
-                    thumbnailUrl = metadata.thumbnailUrl ?: b.thumbnailUrl
+                    thumbnailUrl = metadata.thumbnailUrl ?: b.thumbnailUrl,
+                    author = metadata.author ?: b.author,
+                    readingTimeMinutes = metadata.readingTimeMinutes,
+                    offlineStatus = if (!readerText.isNullOrBlank()) "AVAILABLE" else b.offlineStatus,
+                    offlineHtmlContent = readerText
                 )
             } catch (_: Exception) {
                 // Ignore failure
@@ -297,6 +368,12 @@ class BookmarkRepositoryImpl @Inject constructor(
 
         var importedCount = 0
         for (item in importedList) {
+            val normalized = UrlSanitizer.cleanTrackingParameters(item.bookmark.originalUrl)
+            // Avoid duplicates on import
+            if (bookmarkDao.getBookmarkByNormalizedUrl(normalized) != null) {
+                continue
+            }
+
             val collectionId = if (!item.collectionName.isNullOrBlank()) {
                 val existing = collectionDao.getCollectionByName(item.collectionName)
                 existing?.id ?: collectionDao.insertCollection(
@@ -304,7 +381,10 @@ class BookmarkRepositoryImpl @Inject constructor(
                 )
             } else null
 
-            val bookmarkToInsert = item.bookmark.copy(collectionId = collectionId)
+            val bookmarkToInsert = item.bookmark.copy(
+                normalizedUrl = normalized,
+                collectionId = collectionId
+            )
             val bookmarkId = bookmarkDao.insertBookmark(bookmarkToInsert)
 
             val tagIds = item.tagNames.map { tagName ->
@@ -325,9 +405,12 @@ class BookmarkRepositoryImpl @Inject constructor(
                 Collection(
                     id = it.id,
                     name = it.name,
+                    description = it.description,
                     colorHex = it.colorHex,
                     iconName = it.iconName,
-                    createdAt = it.createdAt
+                    position = it.position,
+                    createdAt = it.createdAt,
+                    updatedAt = it.updatedAt
                 )
             },
             tags = tags.map { Tag(id = it.id, name = it.name) }
@@ -353,7 +436,15 @@ class BookmarkRepositoryImpl @Inject constructor(
             updatedAt = updatedAt,
             collectionId = collectionId,
             metadataStatus = metadataStatus,
-            contentType = contentType
+            contentType = contentType,
+            author = author,
+            readingTimeMinutes = readingTimeMinutes,
+            readingProgress = readingProgress,
+            lastOpenedAt = lastOpenedAt,
+            readAt = readAt,
+            archivedAt = archivedAt,
+            offlineStatus = offlineStatus,
+            offlineHtmlContent = offlineHtmlContent
         )
     }
 
@@ -376,7 +467,15 @@ class BookmarkRepositoryImpl @Inject constructor(
             updatedAt = System.currentTimeMillis(),
             collectionId = collectionId,
             metadataStatus = metadataStatus,
-            contentType = contentType
+            contentType = contentType,
+            author = author,
+            readingTimeMinutes = readingTimeMinutes,
+            readingProgress = readingProgress,
+            lastOpenedAt = lastOpenedAt,
+            readAt = readAt,
+            archivedAt = archivedAt,
+            offlineStatus = offlineStatus,
+            offlineHtmlContent = offlineHtmlContent
         )
     }
 }

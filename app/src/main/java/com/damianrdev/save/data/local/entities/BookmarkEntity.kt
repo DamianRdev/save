@@ -21,6 +21,9 @@ import androidx.room.PrimaryKey
         Index(value = ["isFavorite"]),
         Index(value = ["isArchived"]),
         Index(value = ["isDeleted"]),
+        Index(value = ["isRead"]),
+        Index(value = ["contentType"]),
+        Index(value = ["offlineStatus"]),
         Index(value = ["createdAt"])
     ]
 )
@@ -42,6 +45,14 @@ data class BookmarkEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val collectionId: Long? = null,
-    val metadataStatus: String = "PENDING", // PENDING, SUCCESS, FAILED
-    val contentType: String = "ARTICLE"     // ARTICLE, VIDEO, IMAGE, TWEET, AUDIO, OTHER
+    val metadataStatus: String = "PENDING", // PENDING, SUCCESS, FAILED, OFFLINE
+    val contentType: String = "ARTICLE",    // ARTICLE, VIDEO, IMAGE, TWEET, CODE, PRODUCT, AUDIO, PDF, OTHER
+    val author: String? = null,
+    val readingTimeMinutes: Int = 0,
+    val readingProgress: Float = 0f,
+    val lastOpenedAt: Long? = null,
+    val readAt: Long? = null,
+    val archivedAt: Long? = null,
+    val offlineStatus: String = "NONE",     // NONE, DOWNLOADING, AVAILABLE, FAILED
+    val offlineHtmlContent: String? = null
 )

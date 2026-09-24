@@ -78,6 +78,7 @@ fun BookmarkDetailScreen(
     viewModel: BookmarkDetailViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Long) -> Unit,
+    onNavigateToReader: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val itemWithDetails by viewModel.item.collectAsState()
@@ -88,18 +89,42 @@ fun BookmarkDetailScreen(
     val bookmark = item.bookmark
     val dateFormat = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault())
     val formattedDate = dateFormat.format(Date(bookmark.createdAt))
+    val isOfflineAvailable = bookmark.offlineStatus == "AVAILABLE"
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(bookmark.sourceDomain, style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Column {
+                        Text(bookmark.sourceDomain, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "~${bookmark.readingTimeMinutes.coerceAtLeast(1)} min de lectura" +
+                                    (if (!bookmark.author.isNullOrBlank()) " • ${bookmark.author}" else ""),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        viewModel.toggleOfflineDownload()
+                        Toast.makeText(
+                            context,
+                            if (isOfflineAvailable) "Copia offline eliminada" else "Descargando copia para lectura offline…",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }) {
+                        Text(
+                            text = if (isOfflineAvailable) "📶✓" else "📥",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                     IconButton(onClick = { viewModel.refreshMetadata() }) {
                         Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Refrescar metadatos")
                     }
@@ -191,7 +216,7 @@ fun BookmarkDetailScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Metadata info row: Domain, date, collection
+            // Metadata info row: Domain, date, collection, offline badge
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = bookmark.sourceDomain,
@@ -223,19 +248,28 @@ fun BookmarkDetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Fast Link Actions: Open, Copy, Share
+            // Primary Actions: Modo Lector (Distraction-Free) & Abrir Original
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
+                    onClick = { onNavigateToReader(bookmark.id) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("📖 Modo Lector")
+                }
+
+                OutlinedButton(
                     onClick = { openUrlInCustomTabs(context, bookmark.originalUrl) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(imageVector = Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Abrir")
+                    Text("Abrir Web")
                 }
 
                 OutlinedButton(

@@ -12,7 +12,10 @@ data class ExtractedMetadata(
     val title: String,
     val description: String?,
     val thumbnailUrl: String?,
-    val contentType: String
+    val contentType: String,
+    val author: String? = null,
+    val readingTimeMinutes: Int = 1,
+    val readerContent: String? = null
 )
 
 interface MetadataExtractor {
@@ -98,6 +101,14 @@ class JsoupMetadataExtractor @Inject constructor() : MetadataExtractor {
                 else -> null
             }
 
+            // Author extraction
+            val metaAuthor = cleanText(doc.select("meta[name=author]").attr("content"))
+                .ifBlank { cleanText(doc.select("meta[property=article:author]").attr("content")) }
+                .ifBlank { cleanText(doc.select("meta[name=twitter:creator]").attr("content")) }
+                .ifBlank {
+                    Regex("""@([A-Za-z0-9_.]+)""").find(url)?.groupValues?.getOrNull(1)?.let { "@$it" } ?: ""
+                }
+
             // If title is generic or only shows author on Threads, enrich title with a snippet of the real post text
             val finalTitle = when {
                 rawTitle.isNotBlank() && finalDesc != null && isAuthorOnlySocialTitle(rawTitle, domain) -> {
@@ -136,18 +147,52 @@ class JsoupMetadataExtractor @Inject constructor() : MetadataExtractor {
                 else -> defaultContentType
             }
 
+            // Clean Reader Content Extraction (Distraction-Free Article Text)
+            doc.select("script, style, nav, header, footer, aside, iframe, noscript, form, .ads, .advertisement, .cookie, .popup").remove()
+            val mainContainer = doc.select("article, [role=main], main, .post-content, .article-body, .entry-content").firstOrNull() ?: doc.body()
+            val blocks = mutableListOf<String>()
+            mainContainer?.select("h1, h2, h3, p, blockquote, li")?.forEach { el ->
+                val text = cleanText(el.text())
+                if (text.length >= 25 && !isGenericDescription(text)) {
+                    val formatted = when (el.tagName().lowercase()) {
+                        "h1", "h2", "h3" -> "## $text"
+                        "blockquote" -> "> $text"
+                        "li" -> "• $text"
+                        else -> text
+                    }
+                    if (blocks.lastOrNull() != formatted) {
+                        blocks.add(formatted)
+                    }
+                }
+            }
+
+            val extractedReaderBody = when {
+                blocks.size >= 2 -> blocks.take(80).joinToString("\n\n")
+                !finalDesc.isNullOrBlank() -> finalDesc
+                else -> null
+            }
+
+            val totalWords = (extractedReaderBody ?: finalDesc ?: "").split(Regex("\\s+")).count { it.isNotBlank() }
+            val readingMinutes = (totalWords / 190).coerceAtLeast(1)
+
             ExtractedMetadata(
                 title = finalTitle,
                 description = finalDesc,
                 thumbnailUrl = finalImage,
-                contentType = finalContentType
+                contentType = finalContentType,
+                author = metaAuthor.ifBlank { null },
+                readingTimeMinutes = readingMinutes,
+                readerContent = extractedReaderBody
             )
         } catch (_: Exception) {
             ExtractedMetadata(
                 title = domain,
                 description = null,
                 thumbnailUrl = null,
-                contentType = defaultContentType
+                contentType = defaultContentType,
+                author = null,
+                readingTimeMinutes = 1,
+                readerContent = null
             )
         }
     }

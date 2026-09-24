@@ -130,6 +130,16 @@ fun SaveApp(
                 )
             }
 
+            composable(Screen.Library.route) {
+                val libraryViewModel: HomeViewModel = hiltViewModel()
+                com.damianrdev.save.ui.library.LibraryScreen(
+                    viewModel = libraryViewModel,
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Screen.Detail.createRoute(id))
+                    }
+                )
+            }
+
             composable(Screen.Collections.route) {
                 val collectionsViewModel: CollectionsViewModel = hiltViewModel()
                 CollectionsScreen(
@@ -172,7 +182,21 @@ fun SaveApp(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToEdit = { id ->
                         navController.navigate(Screen.Edit.createRoute(id))
+                    },
+                    onNavigateToReader = { id ->
+                        navController.navigate(Screen.Reader.createRoute(id))
                     }
+                )
+            }
+
+            composable(
+                route = Screen.Reader.route,
+                arguments = listOf(navArgument("bookmarkId") { type = NavType.LongType })
+            ) {
+                val detailViewModel: BookmarkDetailViewModel = hiltViewModel()
+                com.damianrdev.save.ui.reader.ReaderScreen(
+                    viewModel = detailViewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
